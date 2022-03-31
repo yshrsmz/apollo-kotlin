@@ -8,7 +8,8 @@ import com.apollographql.apollo3.api.MutableExecutionOptions
 import com.apollographql.apollo3.api.Operation
 import com.apollographql.apollo3.api.http.HttpHeader
 import com.apollographql.apollo3.api.http.HttpMethod
-import com.apollographql.apollo3.interceptor.ApolloInterceptor
+import com.apollographql.apollo3.network.http.BatchingHttpInterceptor
+import com.apollographql.apollo3.network.http.HttpNetworkTransport
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.single
 
@@ -89,6 +90,7 @@ class ApolloCall<D : Operation.Data> internal constructor(
         .sendApqExtensions(sendApqExtensions)
         .sendDocument(sendDocument)
         .enableAutoPersistedQueries(enableAutoPersistedQueries)
+        .maybeDisableBatching()
         .build()
     return apolloClient.executeAsFlow(request)
   }
@@ -100,5 +102,16 @@ class ApolloCall<D : Operation.Data> internal constructor(
    */
   suspend fun execute(): ApolloResponse<D> {
     return toFlow().single()
+  }
+
+  private fun <D : Operation.Data> ApolloRequest.Builder<D>.maybeDisableBatching() = apply {
+    val batchingEnabled = apolloClient.networkTransport is HttpNetworkTransport &&
+        apolloClient.networkTransport.interceptors.any { it is BatchingHttpInterceptor }
+    if (batchingEnabled) {
+      val hasDeferDirectives = operation.document().contains(" @defer ") || operation.document().contains(" @defer(")
+      if (hasDeferDirectives) {
+        canBeBatched(false)
+      }
+    }
   }
 }
