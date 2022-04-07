@@ -182,7 +182,16 @@ internal class ApolloCacheInterceptor(
         }
 
         store.publish(optimisticKeys!!)
-        throw networkException!!
+        emit(
+            ApolloResponse.Builder(
+                requestUuid = request.requestUuid,
+                operation = request.operation,
+                data = null,
+            )
+                .isLast(true)
+                .exception(networkException)
+                .build()
+        )
       }
     }
   }
@@ -214,25 +223,26 @@ internal class ApolloCacheInterceptor(
           cacheHeaders = request.cacheHeaders
       )
     } catch (e: CacheMissException) {
-      if (request.emitCacheMisses) {
-        return ApolloResponse.Builder(
-            requestUuid = request.requestUuid,
-            operation = operation,
-            data = null,
-        ).addExecutionContext(request.executionContext)
-            .cacheInfo(
-                CacheInfo.Builder()
-                    .cacheStartMillis(startMillis)
-                    .cacheEndMillis(currentTimeMillis())
-                    .cacheHit(false)
-                    .cacheMissException(e)
-                    .build()
-            )
-            .isLast(true)
-            .build()
-      } else {
-        throw e
-      }
+      return ApolloResponse.Builder(
+          requestUuid = request.requestUuid,
+          operation = operation,
+          data = null,
+      ).addExecutionContext(request.executionContext)
+          .cacheInfo(
+              CacheInfo.Builder()
+                  .cacheStartMillis(startMillis)
+                  .cacheEndMillis(currentTimeMillis())
+                  .cacheHit(false)
+                  .cacheMissException(e)
+                  .build()
+          )
+          .isLast(true)
+          .apply {
+            if (!request.emitCacheMisses) {
+              exception(e)
+            }
+          }
+          .build()
     }
 
     return ApolloResponse.Builder(
@@ -268,6 +278,27 @@ internal class ApolloCacheInterceptor(
                   .networkEndMillis(currentTimeMillis())
                   .build()
           ).build()
+    }.catch { e ->
+      if (e !is ApolloException) {
+        throw e
+      }
+      emit(
+          ApolloResponse.Builder(
+              requestUuid = request.requestUuid,
+              operation = request.operation,
+              data = null,
+          )
+              .cacheInfo(
+                  CacheInfo.Builder()
+                      .networkStartMillis(startMillis)
+                      .networkEndMillis(currentTimeMillis())
+                      .networkException(e)
+                      .build()
+              )
+              .isLast(true)
+              .exception(e)
+              .build()
+      )
     }
   }
 }

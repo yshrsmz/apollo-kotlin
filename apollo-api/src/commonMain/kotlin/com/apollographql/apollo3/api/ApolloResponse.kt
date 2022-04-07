@@ -62,6 +62,8 @@ private constructor(
      */
     @JvmField
     val isLast: Boolean,
+
+    val exception: ApolloException?,
 ) {
 
   /**
@@ -88,6 +90,7 @@ private constructor(
         .extensions(extensions)
         .addExecutionContext(executionContext)
         .isLast(isLast)
+        .exception(exception)
   }
 
   class Builder<D : Operation.Data>(
@@ -99,6 +102,7 @@ private constructor(
     private var errors: List<Error>? = null
     private var extensions: Map<String, Any?>? = null
     private var isLast = false
+    private var exception: ApolloException? = null
 
     fun addExecutionContext(executionContext: ExecutionContext) = apply {
       this.executionContext = this.executionContext + executionContext
@@ -120,6 +124,10 @@ private constructor(
       this.isLast = isLast
     }
 
+    fun exception(exception: ApolloException?) = apply {
+      this.exception = exception
+    }
+
     fun build(): ApolloResponse<D> {
       @Suppress("DEPRECATION")
       return ApolloResponse(
@@ -130,6 +138,7 @@ private constructor(
           extensions = extensions ?: emptyMap(),
           errors = errors,
           isLast = isLast,
+          exception = exception,
       )
     }
   }

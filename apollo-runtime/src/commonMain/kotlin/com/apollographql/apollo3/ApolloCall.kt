@@ -8,9 +8,13 @@ import com.apollographql.apollo3.api.MutableExecutionOptions
 import com.apollographql.apollo3.api.Operation
 import com.apollographql.apollo3.api.http.HttpHeader
 import com.apollographql.apollo3.api.http.HttpMethod
-import com.apollographql.apollo3.interceptor.ApolloInterceptor
+import com.apollographql.apollo3.exception.ApolloCompositeException
+import com.apollographql.apollo3.exception.ApolloException
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.single
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.onCompletion
+import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.toList
 
 class ApolloCall<D : Operation.Data> internal constructor(
     internal val apolloClient: ApolloClient,
@@ -90,7 +94,19 @@ class ApolloCall<D : Operation.Data> internal constructor(
         .sendDocument(sendDocument)
         .enableAutoPersistedQueries(enableAutoPersistedQueries)
         .build()
+    val exceptions = mutableListOf<ApolloException>()
     return apolloClient.executeAsFlow(request)
+        .onEach {
+          if (it.exception != null) exceptions.add(it.exception!!)
+        }
+        .filter { it.exception == null }
+        .onCompletion {
+          if (exceptions.size == 1) {
+            throw exceptions[0]
+          } else if (exceptions.size > 1) {
+            throw ApolloCompositeException(exceptions[0], exceptions[1])
+          }
+        }
   }
 
   /**
@@ -99,6 +115,21 @@ class ApolloCall<D : Operation.Data> internal constructor(
    * For subscriptions, you usually want to use [toFlow] instead to listen to all values.
    */
   suspend fun execute(): ApolloResponse<D> {
-    return toFlow().single()
+    val responses = toFlow().toList()
+    val (errors, successes) = responses.partition { it.exception != null }
+    if (successes.size > 1) {
+      throw ApolloException("The operation returned multiple items, use .toFlow() instead of .execute()")
+    } else if (successes.isEmpty()) {
+      if (errors.size == 1) {
+        throw errors.first().exception!!
+      } else if (errors.size > 1) {
+        val exceptions = errors.map { it.exception }
+        throw ApolloCompositeException(exceptions[1], exceptions[2])
+      } else {
+        throw ApolloException("The operation did not emit any item, check your interceptor chain")
+      }
+    } else {
+      return successes.first()
+    }
   }
 }
