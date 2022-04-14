@@ -8,16 +8,16 @@ package com.example.enum_field.type
 import com.apollographql.apollo3.api.EnumType
 import kotlin.Array
 import kotlin.Deprecated
-import kotlin.String
 
 public enum class Gravity(
-  public val rawValue: String,
+  public val rawValue: kotlin.String,
 ) {
   TOP("TOP"),
   CENTER("CENTER"),
   BOTTOM("BOTTOM"),
   @Deprecated(message = "use BOTTOM instead")
   bottom("bottom"),
+  String("String"),
   /**
    * Auto generated constant for unknown enum values
    */
@@ -27,8 +27,8 @@ public enum class Gravity(
   public companion object {
     public val type: EnumType = EnumType("Gravity")
 
-    public fun safeValueOf(rawValue: String): Gravity = values().find { it.rawValue == rawValue } ?:
-        UNKNOWN__
+    public fun safeValueOf(rawValue: kotlin.String): Gravity =
+        values().find { it.rawValue == rawValue } ?: UNKNOWN__
 
     /**
      * Returns all [Gravity] known at compile time
@@ -37,6 +37,7 @@ public enum class Gravity(
       TOP,
       CENTER,
       BOTTOM,
-      bottom)
+      bottom,
+      String)
   }
 }
